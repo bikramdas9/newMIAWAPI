@@ -1,54 +1,50 @@
-const path = require("path");
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
 
-// Require the fastify framework and instantiate it
-const fastify = require("fastify")({
-  // set this to true for detailed logging:
-  logger: false,
-});
+const app = express();
+const PORT = process.env.PORT || 3001;
 
-// Setup our static files
-fastify.register(require("@fastify/static"), {
-  root: path.join(__dirname, "public"),
-  prefix: "/", // optional: default '/'
-});
+app.use(cors());
+app.use(express.json());
 
-// fastify-formbody lets us parse incoming forms
-fastify.register(require("@fastify/formbody"));
+app.get('/sse-proxy', async (req, res) => {
+    const { accessToken, orgId } = req.query;
 
-// point-of-view is a templating manager for fastify
-fastify.register(require("@fastify/view"), {
-  engine: {
-    handlebars: require("handlebars"),
-  },
-});
-
-// Our main GET home page route, pulls from src/pages/index.hbs
-fastify.get("/", function (request, reply) {
-  // params is an object we'll pass to our handlebars template
-  let params = {
-    greeting: "Hello Node!",
-  };
-  // request.query.paramName <-- a querystring example
-  return reply.view("/src/pages/index.hbs", params);
-});
-
-// A POST route to handle form submissions
-fastify.post("/", function (request, reply) {
-  let params = {
-    greeting: "Hello Form!",
-  };
-  // request.body.paramName <-- a form post example
-  return reply.view("/src/pages/index.hbs", params);
-});
-
-// Run the server and report out to the logs
-fastify.listen(
-  { port: process.env.PORT, host: "0.0.0.0" },
-  function (err, address) {
-    if (err) {
-      console.error(err);
-      process.exit(1);
+    if (!accessToken || !orgId) {
+        return res.status(400).send('Missing accessToken or orgId');
     }
-    console.log(`Your app is listening on ${address}`);
-  }
-);
+
+    const salesforceUrl = `https://bikramkuma-250205-795-demo.my.salesforce-scrt.com/eventrouter/v1/sse?authorization=${accessToken}&orgId=${orgId}`;
+
+    try {
+        const sseRes = await axios({
+            method: 'get',
+            url: salesforceUrl,
+            responseType: 'stream',
+            headers: {
+                'Accept': 'text/event-stream'
+            }
+        });
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        sseRes.data.on('data', (chunk) => {
+            res.write(chunk.toString());
+        });
+
+        sseRes.data.on('end', () => {
+            res.end();
+        });
+
+    } catch (error) {
+        console.error('Proxy error:', error.message);
+        res.status(500).send('Error connecting to Salesforce SSE');
+    }
+});
+
+app.listen(PORT, () => {
+    console.log(`Node SSE Proxy running on port ${PORT}`);
+});
