@@ -35,8 +35,9 @@ app.get('/sse-proxy', async (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders(); 
-
+    console.log('🟢 Connected to SSE Proxy');
     sseRes.data.on('data', (chunk) => {
+      console.log('📥 Salesforce Stream:', chunk.toString());
       res.write(chunk.toString());
     });
 
