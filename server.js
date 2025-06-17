@@ -31,9 +31,10 @@ app.get('/sse-proxy', async (req, res) => {
       }
     });
 
+    res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders(); 
 
     sseRes.data.on('data', (chunk) => {
       res.write(chunk.toString());
