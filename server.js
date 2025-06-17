@@ -10,6 +10,7 @@ app.use(express.json());
 
 app.get('/sse-proxy', async (req, res) => {
     const { accessToken, orgId } = req.query;
+  console.log('accessToken-->'+accessToken+' OrgId-->'+orgId);
 
     if (!accessToken || !orgId) {
         return res.status(400).send('Missing accessToken or orgId');
