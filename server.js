@@ -37,8 +37,13 @@ app.get('/sse-proxy', async (req, res) => {
     res.flushHeaders(); 
     console.log('🟢 Connected to SSE Proxy');
     sseRes.data.on('data', (chunk) => {
+      const raw = chunk.toString().trim();
       console.log('📥 Salesforce Stream:', chunk.toString());
-      res.write(chunk.toString());
+      if (raw && raw.startsWith('{')) {
+    // Properly wrap as SSE
+    res.write(`data: ${raw}\n\n`);
+    console.log('✅ Forwarded to LWC:', raw);
+  }
     });
 
     sseRes.data.on('end', () => {
