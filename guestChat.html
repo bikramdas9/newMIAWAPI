@@ -1,0 +1,34 @@
+<template>
+    <!-- Floating launcher icon -->
+    <div class="chat-launcher" onclick={toggleChatWindow} if:true={showChatIcon}>💬</div>
+
+    <!-- Chat window -->
+    <template if:true={isChatVisible}>
+        <div class="chat-container">
+            <div class="chat-header">
+                <span>Agentforce</span>
+                <button onclick={endChat}>✕</button>
+            </div>
+
+            <div class="chat-body" id="chatScroll">
+                <template for:each={messages} for:item="msg">
+                    <div key={msg.id} class={msg.cssClass}>
+                        {msg.text}
+                    </div>
+                </template>
+                <div if:true={isThinking} class="thinking">Agentforce is typing...</div>
+            </div>
+
+            <div class="chat-footer">
+                <input
+                    type="text"
+                    value={inputText}
+                    oninput={handleInput}
+                    onkeypress={checkEnter}
+                    placeholder="Type your message here..."
+                />
+                <button onclick={sendMessage}>Send</button>
+            </div>
+        </div>
+    </template>
+</template>
