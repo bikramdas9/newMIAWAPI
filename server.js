@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const XLSX = require('xlsx'); // ⬅️ Add this
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -8,6 +9,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// ✅ SSE Proxy Route
 app.get('/sse-proxy', async (req, res) => {
   const { accessToken, orgId } = req.query;
   console.log('accessToken-->' + accessToken?.substring(0, 60) + '...');
@@ -34,16 +36,16 @@ app.get('/sse-proxy', async (req, res) => {
     res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders(); 
+    res.flushHeaders();
     console.log('🟢 Connected to SSE Proxy');
+
     sseRes.data.on('data', (chunk) => {
       const raw = chunk.toString().trim();
       console.log('📥 Salesforce Stream:', chunk.toString());
       if (raw && raw.startsWith('{')) {
-    // Properly wrap as SSE
-    res.write(`data: ${raw}\n\n`);
-    console.log('✅ Forwarded to LWC:', raw);
-  }
+        res.write(`data: ${raw}\n\n`);
+        console.log('✅ Forwarded to LWC:', raw);
+      }
     });
 
     sseRes.data.on('end', () => {
@@ -56,6 +58,33 @@ app.get('/sse-proxy', async (req, res) => {
   }
 });
 
+// ✅ NEW: Convert JSON to Excel
+app.get('/convert-to-excel', async (req, res) => {
+  const { url } = req.query;
+
+  if (!url) {
+    return res.status(400).send("Missing 'url' parameter");
+  }
+
+  try {
+    const response = await axios.get(url);
+    const jsonData = response.data;
+
+    const worksheet = XLSX.utils.json_to_sheet(jsonData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename="converted.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error) {
+    console.error('Excel conversion error:', error.message);
+    res.status(500).send('Failed to convert JSON to Excel');
+  }
+});
+
 app.listen(PORT, () => {
-    console.log(`Node SSE Proxy running on port ${PORT}`);
+  console.log(`Node SSE Proxy running on port ${PORT}`);
 });
