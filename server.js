@@ -5,11 +5,10 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Allow OPTIONS
+// Basic CORS setup
 app.use(cors());
 app.use(express.json());
-
-app.options('*', cors()); // Preflight support
+app.options('*', cors()); // Preflight
 
 app.get('/sse-proxy', async (req, res) => {
     const { accessToken, orgId } = req.query;
@@ -18,7 +17,7 @@ app.get('/sse-proxy', async (req, res) => {
         return res.status(400).send('Missing accessToken or orgId');
     }
 
-    // ✅ SSE CORS headers
+    // Set SSE headers
     res.setHeader('Access-Control-Allow-Origin', 'https://bikramkuma-250205-795-demo.my.site.com');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
@@ -26,7 +25,9 @@ app.get('/sse-proxy', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    // 🔁 Connect to Salesforce SSE
+    // 🔄 Prevent Heroku timeout by flushing headers immediately
+    res.flushHeaders();
+
     const salesforceUrl = `https://bikramkuma-250205-795-demo.my.salesforce-scrt.com/eventrouter/v1/sse`;
 
     try {
@@ -52,12 +53,12 @@ app.get('/sse-proxy', async (req, res) => {
         });
 
         sseRes.data.on('end', () => {
-            console.log('🔚 SSE ended');
+            console.log('🔚 SSE ended from Salesforce');
             res.end();
         });
 
         req.on('close', () => {
-            console.log('🔴 Client closed');
+            console.log('🔴 Client disconnected');
             sseRes.data.destroy();
         });
 
@@ -68,5 +69,5 @@ app.get('/sse-proxy', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Proxy running on port ${PORT}`);
+    console.log(`🚀 SSE Proxy Server running on port ${PORT}`);
 });
