@@ -5,10 +5,9 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Basic CORS setup
 app.use(cors());
 app.use(express.json());
-app.options('*', cors()); // Preflight
+app.options('*', cors()); // preflight support
 
 app.get('/sse-proxy', async (req, res) => {
     const { accessToken, orgId } = req.query;
@@ -17,17 +16,16 @@ app.get('/sse-proxy', async (req, res) => {
         return res.status(400).send('Missing accessToken or orgId');
     }
 
-    // Set SSE headers
+    // ✅ Set CORS & SSE headers
     res.setHeader('Access-Control-Allow-Origin', 'https://bikramkuma-250205-795-demo.my.site.com');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
-
-    // 🔄 Prevent Heroku timeout by flushing headers immediately
-    res.flushHeaders();
-
+    res.flushHeaders(); // 🔥 force headers to be sent now
+    res.connection.setTimeout(0); // disables timeout for this socket
+    // 🔁 Connect to Salesforce SSE
     const salesforceUrl = `https://bikramkuma-250205-795-demo.my.salesforce-scrt.com/eventrouter/v1/sse`;
 
     try {
@@ -48,17 +46,17 @@ app.get('/sse-proxy', async (req, res) => {
             const raw = chunk.toString().trim();
             if (raw.startsWith('{')) {
                 res.write(`data: ${raw}\n\n`);
-                console.log('📤 Forwarded:', raw);
+                console.log('📤 Forwarded to client:', raw);
             }
         });
 
         sseRes.data.on('end', () => {
-            console.log('🔚 SSE ended from Salesforce');
+            console.log('🔚 SSE ended');
             res.end();
         });
 
         req.on('close', () => {
-            console.log('🔴 Client disconnected');
+            console.log('🔴 Client closed connection');
             sseRes.data.destroy();
         });
 
@@ -69,5 +67,5 @@ app.get('/sse-proxy', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 SSE Proxy Server running on port ${PORT}`);
+    console.log(`🚀 SSE Proxy running on port ${PORT}`);
 });
