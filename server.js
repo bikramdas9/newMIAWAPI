@@ -1,3 +1,17 @@
+// server.js
+
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Enable CORS
+app.use(cors());
+app.use(express.json());
+app.options('*', cors()); // preflight
+
 app.get('/sse-proxy', async (req, res) => {
     const { accessToken, orgId } = req.query;
 
@@ -5,18 +19,19 @@ app.get('/sse-proxy', async (req, res) => {
         return res.status(400).send('Missing accessToken or orgId');
     }
 
+    // Set SSE headers
     res.setHeader('Access-Control-Allow-Origin', 'https://bikramkuma-250205-795-demo.my.site.com');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-    res.connection.setTimeout(0);
+    res.flushHeaders(); // send headers immediately
+    res.socket.setTimeout(0); // disable socket timeout
+
+    const salesforceUrl = `https://bikramkuma-250205-795-demo.my.salesforce-scrt.com/eventrouter/v1/sse`;
 
     try {
-        const salesforceUrl = `https://bikramkuma-250205-795-demo.my.salesforce-scrt.com/eventrouter/v1/sse`;
-
         const sseRes = await axios({
             method: 'get',
             url: salesforceUrl,
@@ -30,11 +45,12 @@ app.get('/sse-proxy', async (req, res) => {
 
         console.log('🟢 Connected to Salesforce SSE');
 
-        // 🔁 Keep-alive to prevent Heroku idle timeout
-        const keepAliveInterval = setInterval(() => {
+        // Send keep-alive to prevent Heroku idle timeout
+        const keepAlive = setInterval(() => {
             res.write(`: keep-alive\n\n`);
         }, 25000);
 
+        // Forward Salesforce SSE messages to the client
         sseRes.data.on('data', (chunk) => {
             const raw = chunk.toString().trim();
             if (raw.startsWith('{')) {
@@ -44,13 +60,13 @@ app.get('/sse-proxy', async (req, res) => {
         });
 
         sseRes.data.on('end', () => {
-            clearInterval(keepAliveInterval);
+            clearInterval(keepAlive);
             console.log('🔚 SSE ended');
             res.end();
         });
 
         req.on('close', () => {
-            clearInterval(keepAliveInterval);
+            clearInterval(keepAlive);
             console.log('🔴 Client closed connection');
             sseRes.data.destroy();
         });
@@ -59,4 +75,9 @@ app.get('/sse-proxy', async (req, res) => {
         console.error('❌ SSE Proxy Error:', err.message);
         res.status(500).send('Failed to connect to Salesforce SSE');
     }
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`🚀 SSE Proxy running on port ${PORT}`);
 });
